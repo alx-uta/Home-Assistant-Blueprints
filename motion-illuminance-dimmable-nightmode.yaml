@@ -1,5 +1,5 @@
 blueprint:
-  name: Motion-activated Light with brightness restore and timing fixes
+  name: Motion-activated Light with brightness restore and precise dimming
   description: Turn on a light when motion is detected and illuminance is below a set Lux level. Includes brightness restoration and precise timing.
   domain: automation
   input:
@@ -27,7 +27,8 @@ blueprint:
       name: Light
       selector:
         target:
-          entity: light
+          entity:
+            domain: light
     dim_time:
       name: Dim Time
       default: 15
@@ -65,34 +66,48 @@ blueprint:
     dim_time: !input dim_time
     dim_value: !input dim_value
   trigger:
-    platform: state
-    entity_id: !input motion_entity
-    from: 'off'
-    to: 'on'
+    - platform: state
+      entity_id: !input motion_entity
+      from: 'off'
+      to: 'on'
   condition:
-    condition: numeric_state
-    entity_id: !input lux_entity
-    below: !input lux_level
+    - condition: numeric_state
+      entity_id: !input lux_entity
+      below: !input lux_level
   action:
+    # Save the current brightness of the light
+    - variables:
+        current_brightness: >-
+          {{
+            state_attr(
+              expand(!input light_target) | map(attribute='entity_id') | first,
+              'brightness'
+            ) | default(255)
+          }}
+    # Turn the light on with the current brightness
     - service: light.turn_on
       target: !input light_target
       data:
-        brightness: >
-          {{ state_attr(target.entity_id, 'brightness') | default(255) }}
+        brightness: "{{ current_brightness }}"
+    # Wait for motion to stop
     - wait_for_trigger:
-        platform: state
-        entity_id: !input motion_entity
-        from: 'on'
+        - platform: state
+          entity_id: !input motion_entity
+          from: 'on'
+    # Wait before dimming based on day or night
     - delay: >
         {% if is_state('sun.sun', 'below_horizon') %}
           {{ motion_wait_night - dim_time }}
         {% else %}
           {{ motion_wait_day - dim_time }}
         {% endif %}
+    # Dim the light to the specified dim value
     - service: light.turn_on
       target: !input light_target
       data:
         brightness: "{{ dim_value }}"
+    # Wait for the dimming time
     - delay: "{{ dim_time }}"
+    # Turn the light off
     - service: light.turn_off
       target: !input light_target
