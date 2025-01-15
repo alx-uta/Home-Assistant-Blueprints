@@ -1,126 +1,98 @@
 blueprint:
-  name: Motion-activated Light with illuminance, sun integration, dimmable, and brightness restore
-  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light dims before turning off and restores its previous brightness when motion is detected again. Uses sun integration to determine day or night.
+  name: Motion-activated Light with brightness restore and timing fixes
+  description: Turn on a light when motion is detected and illuminance is below a set Lux level. Includes brightness restoration and precise timing.
   domain: automation
   input:
     motion_entity:
       name: Motion Sensor
       selector:
         entity:
-          domain:
-          - binary_sensor
-          device_class:
-          - motion
-          multiple: false
+          domain: binary_sensor
+          device_class: motion
     lux_entity:
       name: Illuminance Sensor
       selector:
         entity:
-          domain:
-          - sensor
-          device_class:
-          - illuminance
-          multiple: false
+          domain: sensor
+          device_class: illuminance
     lux_level:
-      name: Illuminance level
-      description: If lux is below this value and motion is detected, the light will turn on.
+      name: Illuminance Level
       default: 100
       selector:
         number:
-          min: 0.0
-          max: 3000.0
-          step: 1.0
-          mode: slider
+          min: 0
+          max: 3000
+          step: 1
     light_target:
       name: Light
       selector:
         target:
-          entity:
-          - domain:
-            - light
+          entity: light
     dim_time:
-      name: Dim light
-      description: The light will start dimming this many seconds before it is turned off if no motion has been detected.
+      name: Dim Time
       default: 15
       selector:
         number:
-          min: 0.0
-          max: 120.0
+          min: 0
+          max: 120
           unit_of_measurement: seconds
-          step: 1.0
-          mode: slider
     no_motion_wait_day:
-      name: Wait time (day)
-      description: Time to leave the light on after last motion is detected during the day.
+      name: Wait Time (Day)
       default: 30
       selector:
         number:
-          min: 0.0
-          max: 600.0
+          min: 0
+          max: 600
           unit_of_measurement: seconds
-          step: 1.0
-          mode: slider
     no_motion_wait_night:
-      name: Wait time (night)
-      description: Time to leave the light on after last motion is detected during the night.
+      name: Wait Time (Night)
       default: 15
       selector:
         number:
-          min: 0.0
-          max: 600.0
+          min: 0
+          max: 600
           unit_of_measurement: seconds
-          step: 1.0
-          mode: slider
     dim_value:
-      name: Dim value
-      description: Temporary dim level to set before the light turns off. The previous brightness is restored on next motion.
+      name: Dim Value
       default: 10
       selector:
         number:
           min: 1
           max: 255
-          step: 1
-          mode: slider
-  source_url: https://github.com/alx-uta/Home-Assistant-Blueprints/blob/main/motion-illuminance-dimmable-nightmode.yaml
-mode: restart
-max_exceeded: silent
-variables:
-  local_motion_delay_day: !input no_motion_wait_day
-  local_motion_delay_night: !input no_motion_wait_night
-  local_motion_dim_time: !input dim_time
-  local_dim_value: !input dim_value
-trigger:
-  platform: state
-  entity_id: !input motion_entity
-  from: 'off'
-  to: 'on'
-condition:
-  condition: numeric_state
-  entity_id: !input lux_entity
-  below: !input lux_level
-action:
-- variables:
-    previous_brightness: >
-      {{ state_attr(target_entity, 'brightness') if state_attr(target_entity, 'brightness') else 255 }}
-    target_entity: "{{ expand('!input light_target') | first.entity_id }}"
-- service: light.turn_on
-  target: !input light_target
-  data:
-    brightness: "{{ previous_brightness }}"
-- wait_for_trigger:
+  variables:
+    motion_wait_day: !input no_motion_wait_day
+    motion_wait_night: !input no_motion_wait_night
+    dim_time: !input dim_time
+    dim_value: !input dim_value
+  trigger:
     platform: state
     entity_id: !input motion_entity
-    from: 'on'
-- delay: >
-    {% if is_state('sun.sun', 'below_horizon') %}
-      {{ local_motion_delay_night - local_motion_dim_time }}
-    {% else %}
-      {{ local_motion_delay_day - local_motion_dim_time }}
-    {% endif %}
-- service: light.turn_on
-  target: !input light_target
-  data:
-    brightness: "{{ local_dim_value }}"
-- delay: "{{ local_motion_dim_time }}"
-- service: light.turn_off
-  target: !input light_target
+    from: 'off'
+    to: 'on'
+  condition:
+    condition: numeric_state
+    entity_id: !input lux_entity
+    below: !input lux_level
+  action:
+    - service: light.turn_on
+      target: !input light_target
+      data:
+        brightness: >
+          {{ state_attr(target.entity_id, 'brightness') | default(255) }}
+    - wait_for_trigger:
+        platform: state
+        entity_id: !input motion_entity
+        from: 'on'
+    - delay: >
+        {% if is_state('sun.sun', 'below_horizon') %}
+          {{ motion_wait_night - dim_time }}
+        {% else %}
+          {{ motion_wait_day - dim_time }}
+        {% endif %}
+    - service: light.turn_on
+      target: !input light_target
+      data:
+        brightness: "{{ dim_value }}"
+    - delay: "{{ dim_time }}"
+    - service: light.turn_off
+      target: !input light_target
