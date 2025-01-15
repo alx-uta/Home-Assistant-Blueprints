@@ -1,9 +1,6 @@
 blueprint:
-  name: Motion-activated Light with illuminance, nightmode and dimmable
-  description: Turn on a light when motion is detected and illuminance is below a
-    set Lux level. The light will dim before it is turned off to signal that it has
-    not detected motion in quite a while. There is also two timers, on for daytime
-    and one for nighttime.
+  name: Motion-activated Light with illuminance, sun integration, night mode, and dimmable
+  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light will dim before it is turned off to signal that it has not detected motion in quite a while. Uses the sun integration to automatically detect day or night.
   domain: automation
   input:
     motion_entity:
@@ -26,8 +23,7 @@ blueprint:
           multiple: false
     lux_level:
       name: Illuminance level
-      description: If lux is below this value and motion is detected, the light will
-        turn on.
+      description: If lux is below this value and motion is detected, the light will turn on.
       default: 100
       selector:
         number:
@@ -44,9 +40,7 @@ blueprint:
             - light
     dim_time:
       name: Dim light
-      description: The light will start dim this many seconds before it is turned
-        off if no motion has been detected to signal that the light will soon turn
-        off.
+      description: The light will start dimming this many seconds before it is turned off if no motion has been detected to signal that the light will soon turn off.
       default: 30
       selector:
         number:
@@ -57,8 +51,7 @@ blueprint:
           mode: slider
     no_motion_wait_day:
       name: Wait time (day)
-      description: Time to leave the light on after last motion is detected during
-        the day.
+      description: Time to leave the light on after last motion is detected during the day.
       default: 300
       selector:
         number:
@@ -69,8 +62,7 @@ blueprint:
           mode: slider
     no_motion_wait_night:
       name: Wait time (night)
-      description: Time to leave the light on after last motion is detected during
-        the night.
+      description: Time to leave the light on after last motion is detected during the night.
       default: 120
       selector:
         number:
@@ -79,30 +71,10 @@ blueprint:
           unit_of_measurement: seconds
           step: 1.0
           mode: slider
-    night_time_start_helper:
-      name: Night time helper (Start)
-      description: When should it be considered night time? Create an input date time
-        helper and set when you want the night to start.
-      selector:
-        entity:
-          domain:
-          - input_datetime
-          multiple: false
-    night_time_end_helper:
-      name: Night time helper (End)
-      description: When should it be considered night time? Create an input date time
-        helper and set when you want the night to end.
-      selector:
-        entity:
-          domain:
-          - input_datetime
-          multiple: false
   source_url: https://github.com/alx-uta/Home-Assistant-Blueprints/blob/main/motion-illuminance-dimmable-nightmode.yaml
 mode: restart
 max_exceeded: silent
 variables:
-  local_night_end: !input night_time_end_helper
-  local_night_start: !input night_time_start_helper
   local_motion_delay_day: !input no_motion_wait_day
   local_motion_delay_night: !input no_motion_wait_night
   local_motion_dim_time: !input dim_time
@@ -122,9 +94,12 @@ action:
     platform: state
     entity_id: !input motion_entity
     from: 'on'
-- delay: ' {% if today_at(states(local_night_end)) < now() or now() < today_at(states(local_night_start))  %}
-    {{ local_motion_delay_day - local_motion_dim_time }} {% else %} {{ local_motion_delay_night
-    - local_motion_dim_time }} {% endif %} '
+- delay: >
+    {% if is_state('sun.sun', 'below_horizon') %}
+      {{ local_motion_delay_night - local_motion_dim_time }}
+    {% else %}
+      {{ local_motion_delay_day - local_motion_dim_time }}
+    {% endif %}
 - service: light.turn_off
   target: !input light_target
   data:
