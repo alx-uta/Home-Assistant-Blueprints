@@ -1,6 +1,6 @@
 blueprint:
-  name: Motion-activated Light with illuminance, sun integration, night mode, and dimmable
-  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light will dim before it is turned off to signal that it has not detected motion in quite a while. Uses the sun integration to automatically detect day or night.
+  name: Motion-activated Light with illuminance, sun integration, night mode, dimmable, and adjustable dim level
+  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light will dim before it is turned off to signal that it has not detected motion in quite a while. Uses the sun integration to automatically detect day or night, and allows setting a temporary dimming level.
   domain: automation
   input:
     motion_entity:
@@ -71,6 +71,16 @@ blueprint:
           unit_of_measurement: seconds
           step: 1.0
           mode: slider
+    dim_value:
+      name: Dim value
+      description: Temporary dim level to set when the light is dimming before turning off. The light will start from its default brightness the next time it turns on.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
   source_url: https://github.com/alx-uta/Home-Assistant-Blueprints/blob/main/motion-illuminance-dimmable-nightmode.yaml
 mode: restart
 max_exceeded: silent
@@ -78,6 +88,7 @@ variables:
   local_motion_delay_day: !input no_motion_wait_day
   local_motion_delay_night: !input no_motion_wait_night
   local_motion_dim_time: !input dim_time
+  local_dim_value: !input dim_value
 trigger:
   platform: state
   entity_id: !input motion_entity
@@ -100,7 +111,10 @@ action:
     {% else %}
       {{ local_motion_delay_day - local_motion_dim_time }}
     {% endif %}
-- service: light.turn_off
+- service: light.turn_on
   target: !input light_target
   data:
-    transition: !input dim_time
+    brightness: "{{ local_dim_value }}"
+- delay: "{{ local_motion_dim_time }}"
+- service: light.turn_off
+  target: !input light_target
