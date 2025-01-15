@@ -1,6 +1,6 @@
 blueprint:
-  name: Motion-activated Light with illuminance, sun integration, night mode, dimmable, and adjustable dim level
-  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light will dim before it is turned off to signal that it has not detected motion in quite a while. Uses the sun integration to automatically detect day or night, and allows setting a temporary dimming level.
+  name: Motion-activated Light with illuminance, sun integration, dimmable, and brightness restore
+  description: Turn on a light when motion is detected and illuminance is below a set Lux level. The light dims before turning off and restores its previous brightness when motion is detected again. Uses sun integration to determine day or night.
   domain: automation
   input:
     motion_entity:
@@ -40,8 +40,8 @@ blueprint:
             - light
     dim_time:
       name: Dim light
-      description: The light will start dimming this many seconds before it is turned off if no motion has been detected to signal that the light will soon turn off.
-      default: 30
+      description: The light will start dimming this many seconds before it is turned off if no motion has been detected.
+      default: 15
       selector:
         number:
           min: 0.0
@@ -52,7 +52,7 @@ blueprint:
     no_motion_wait_day:
       name: Wait time (day)
       description: Time to leave the light on after last motion is detected during the day.
-      default: 300
+      default: 30
       selector:
         number:
           min: 0.0
@@ -63,7 +63,7 @@ blueprint:
     no_motion_wait_night:
       name: Wait time (night)
       description: Time to leave the light on after last motion is detected during the night.
-      default: 120
+      default: 15
       selector:
         number:
           min: 0.0
@@ -73,7 +73,7 @@ blueprint:
           mode: slider
     dim_value:
       name: Dim value
-      description: Temporary dim level to set when the light is dimming before turning off. The light will start from its default brightness the next time it turns on.
+      description: Temporary dim level to set before the light turns off. The previous brightness is restored on next motion.
       default: 10
       selector:
         number:
@@ -99,8 +99,14 @@ condition:
   entity_id: !input lux_entity
   below: !input lux_level
 action:
+- variables:
+    previous_brightness: >
+      {{ state_attr(target_entity, 'brightness') if state_attr(target_entity, 'brightness') else 255 }}
+    target_entity: "{{ expand('!input light_target') | first.entity_id }}"
 - service: light.turn_on
   target: !input light_target
+  data:
+    brightness: "{{ previous_brightness }}"
 - wait_for_trigger:
     platform: state
     entity_id: !input motion_entity
