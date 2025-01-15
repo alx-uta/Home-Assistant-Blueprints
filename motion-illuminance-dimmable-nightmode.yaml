@@ -97,7 +97,7 @@ blueprint:
           domain:
           - input_datetime
           multiple: false
-  source_url: https://gist.github.com/Danielbook/ad8dacabb8dc01e7cf062cbd8c1a00ed
+  source_url: https://github.com/alx-uta/Home-Assistant-Blueprints/blob/main/motion-illuminance-dimmable-nightmode.yaml
 mode: restart
 max_exceeded: silent
 variables:
